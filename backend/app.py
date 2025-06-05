@@ -1,6 +1,13 @@
 from flask import Flask, render_template, redirect, url_for
 from flask_sqlalchemy import SQLAlchemy
-from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
+from flask_login import (
+    LoginManager,
+    UserMixin,
+    login_user,
+    login_required,
+    logout_user,
+    current_user,
+)
 from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
@@ -41,6 +48,17 @@ def load_user(user_id):
 def index():
     transactions = Transaction.query.filter_by(user_id=current_user.id).all()
     return render_template('index.html', transactions=transactions)
+
+
+@app.route('/all')
+@login_required
+def all_transactions():
+    transactions = (
+        db.session.query(Transaction, User.username)
+        .join(User, Transaction.user_id == User.id)
+        .all()
+    )
+    return render_template('all_transactions.html', transactions=transactions)
 
 
 @app.route('/add', methods=['GET', 'POST'])
