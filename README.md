@@ -18,3 +18,5 @@ A minimal web app to track income and expenses. Built with Flask.
    ```
 
 Open `http://127.0.0.1:5000` in your browser.
+
+After registering or logging in, use the **Add** link to record new transactions.

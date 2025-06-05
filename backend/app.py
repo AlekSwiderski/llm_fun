@@ -42,6 +42,24 @@ def index():
     transactions = Transaction.query.filter_by(user_id=current_user.id).all()
     return render_template('index.html', transactions=transactions)
 
+
+@app.route('/add', methods=['GET', 'POST'])
+@login_required
+def add_transaction():
+    from flask import request
+    if request.method == 'POST':
+        t = Transaction(
+            user_id=current_user.id,
+            date=request.form['date'],
+            category=request.form['category'],
+            amount=request.form['amount'],
+            description=request.form['description'],
+        )
+        db.session.add(t)
+        db.session.commit()
+        return redirect(url_for('index'))
+    return render_template('add_transaction.html')
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     from flask import request
