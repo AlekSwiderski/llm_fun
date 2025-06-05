@@ -1,0 +1,35 @@
+{% extends 'base.html' %}
+{% block content %}
+<h1>Spending for {{ start.strftime('%B %Y') }}</h1>
+<table>
+    <tr><th>Category</th><th>Total</th></tr>
+    {% for category, total in totals %}
+    <tr>
+        <td>{{ category }}</td>
+        <td>{{ '{:.2f}'.format(total) }}</td>
+    </tr>
+    {% endfor %}
+</table>
+<h2>Category Chart</h2>
+<canvas id="chart" width="400" height="200"></canvas>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+const data = {{ totals|tojson }};
+const labels = data.map(d => d[0]);
+const values = data.map(d => d[1]);
+new Chart(document.getElementById('chart'), {
+    type: 'bar',
+    data: {
+        labels: labels,
+        datasets: [{
+            label: 'Total',
+            data: values,
+            backgroundColor: 'rgba(75, 192, 192, 0.2)',
+            borderColor: 'rgba(75, 192, 192, 1)',
+            borderWidth: 1
+        }]
+    },
+    options: { scales: { y: { beginAtZero: true } } }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,18 @@
+{% extends 'base.html' %}
+{% block content %}
+<h1>Categories</h1>
+<table>
+    <tr><th>Name</th><th>Action</th></tr>
+    {% for c in categories %}
+    <tr>
+        <td>{{ c.name }}</td>
+        <td><a href="{{ url_for('delete_category', cat_id=c.id) }}">Delete</a></td>
+    </tr>
+    {% endfor %}
+</table>
+<h2>Add Category</h2>
+<form method="post">
+    <input name="name" placeholder="Name" required>
+    <button type="submit">Add</button>
+</form>
+{% endblock %}

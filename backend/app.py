@@ -1,0 +1,249 @@
+from flask import Flask, render_template, redirect, url_for
+from datetime import date
+from flask_sqlalchemy import SQLAlchemy
+from flask_login import (
+    LoginManager,
+    UserMixin,
+    login_user,
+    login_required,
+    logout_user,
+    current_user,
+)
+from werkzeug.security import generate_password_hash, check_password_hash
+
+app = Flask(__name__)
+app.config['SECRET_KEY'] = 'change-me'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///finance.db'
+
+
+db = SQLAlchemy(app)
+login_manager = LoginManager()
+login_manager.login_view = 'login'
+login_manager.init_app(app)
+
+class User(UserMixin, db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(150), unique=True, nullable=False)
+    password_hash = db.Column(db.String(256), nullable=False)
+
+    def set_password(self, password):
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password):
+        return check_password_hash(self.password_hash, password)
+
+class Transaction(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    date = db.Column(db.Date, nullable=False)
+    category = db.Column(db.String(100), nullable=False)
+    amount = db.Column(db.Float, nullable=False)
+    description = db.Column(db.String(255))
+
+class Budget(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    category = db.Column(db.String(100), nullable=False)
+    amount = db.Column(db.Float, nullable=False)
+
+class Category(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    name = db.Column(db.String(100), nullable=False)
+    __table_args__ = (db.UniqueConstraint('user_id', 'name'),)
+
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
+
+@app.route('/')
+@login_required
+def index():
+    transactions = Transaction.query.filter_by(user_id=current_user.id).all()
+    return render_template('index.html', transactions=transactions)
+
+
+@app.route('/all')
+@login_required
+def all_transactions():
+    transactions = (
+        db.session.query(Transaction, User.username)
+        .join(User, Transaction.user_id == User.id)
+        .all()
+    )
+    return render_template('all_transactions.html', transactions=transactions)
+
+
+@app.route('/report')
+@login_required
+def monthly_report():
+    start = date.today().replace(day=1)
+    totals = (
+        db.session.query(Transaction.category, db.func.sum(Transaction.amount))
+        .filter(Transaction.user_id == current_user.id, Transaction.date >= start)
+        .group_by(Transaction.category)
+        .all()
+    )
+    return render_template('report.html', totals=totals, start=start)
+
+
+@app.route('/budgets', methods=['GET', 'POST'])
+@login_required
+def budgets():
+    from flask import request
+    if request.method == 'POST':
+        category = request.form['category']
+        amount = float(request.form['amount'])
+        b = Budget.query.filter_by(user_id=current_user.id, category=category).first()
+        if b:
+            b.amount = amount
+        else:
+            b = Budget(user_id=current_user.id, category=category, amount=amount)
+            db.session.add(b)
+        db.session.commit()
+        return redirect(url_for('budgets'))
+
+    start = date.today().replace(day=1)
+    totals_query = (
+        db.session.query(Transaction.category, db.func.sum(Transaction.amount))
+        .filter(Transaction.user_id == current_user.id, Transaction.date >= start)
+        .group_by(Transaction.category)
+        .all()
+    )
+    totals = {cat: total for cat, total in totals_query}
+    budgets = Budget.query.filter_by(user_id=current_user.id).all()
+    return render_template('budgets.html', budgets=budgets, totals=totals, start=start)
+
+
+@app.route('/categories', methods=['GET', 'POST'])
+@login_required
+def manage_categories():
+    from flask import request
+    if request.method == 'POST':
+        name = request.form['name']
+        if not Category.query.filter_by(user_id=current_user.id, name=name).first():
+            c = Category(user_id=current_user.id, name=name)
+            db.session.add(c)
+            db.session.commit()
+        return redirect(url_for('manage_categories'))
+    categories = Category.query.filter_by(user_id=current_user.id).all()
+    return render_template('categories.html', categories=categories)
+
+
+@app.route('/delete_category/<int:cat_id>')
+@login_required
+def delete_category(cat_id):
+    c = Category.query.get_or_404(cat_id)
+    if c.user_id == current_user.id:
+        db.session.delete(c)
+        db.session.commit()
+    return redirect(url_for('manage_categories'))
+
+
+@app.route('/add', methods=['GET', 'POST'])
+@login_required
+def add_transaction():
+    from flask import request
+    if request.method == 'POST':
+        category_name = request.form['category']
+        t = Transaction(
+            user_id=current_user.id,
+            date=request.form['date'],
+            category=category_name,
+            amount=request.form['amount'],
+            description=request.form['description'],
+        )
+        db.session.add(t)
+        if not Category.query.filter_by(user_id=current_user.id, name=category_name).first():
+            db.session.add(Category(user_id=current_user.id, name=category_name))
+        db.session.commit()
+        return redirect(url_for('index'))
+    categories = Category.query.filter_by(user_id=current_user.id).all()
+    return render_template('add_transaction.html', categories=categories)
+
+
+@app.route('/edit/<int:tx_id>', methods=['GET', 'POST'])
+@login_required
+def edit_transaction(tx_id):
+    from flask import request
+    t = Transaction.query.get_or_404(tx_id)
+    if t.user_id != current_user.id:
+        return redirect(url_for('index'))
+    if request.method == 'POST':
+        t.date = request.form['date']
+        category_name = request.form['category']
+        t.category = category_name
+        t.amount = request.form['amount']
+        t.description = request.form['description']
+        db.session.commit()
+        if not Category.query.filter_by(user_id=current_user.id, name=category_name).first():
+            db.session.add(Category(user_id=current_user.id, name=category_name))
+            db.session.commit()
+        return redirect(url_for('index'))
+    categories = Category.query.filter_by(user_id=current_user.id).all()
+    return render_template('edit_transaction.html', transaction=t, categories=categories)
+
+
+@app.route('/delete/<int:tx_id>')
+@login_required
+def delete_transaction(tx_id):
+    t = Transaction.query.get_or_404(tx_id)
+    if t.user_id == current_user.id:
+        db.session.delete(t)
+        db.session.commit()
+    return redirect(url_for('index'))
+
+
+@app.route('/export')
+@login_required
+def export_transactions():
+    import csv
+    from io import StringIO
+    si = StringIO()
+    cw = csv.writer(si)
+    cw.writerow(['date', 'category', 'amount', 'description'])
+    for t in Transaction.query.filter_by(user_id=current_user.id).all():
+        cw.writerow([t.date, t.category, t.amount, t.description])
+    output = si.getvalue()
+    from flask import Response
+    return Response(
+        output,
+        mimetype='text/csv',
+        headers={'Content-Disposition': 'attachment;filename=transactions.csv'},
+    )
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    from flask import request
+    if request.method == 'POST':
+        user = User.query.filter_by(username=request.form['username']).first()
+        if user and user.check_password(request.form['password']):
+            login_user(user)
+            return redirect(url_for('index'))
+    return render_template('login.html')
+
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for('login'))
+
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    from flask import request
+    if request.method == 'POST':
+        user = User(username=request.form['username'])
+        user.set_password(request.form['password'])
+        db.session.add(user)
+        db.session.commit()
+        login_user(user)
+        return redirect(url_for('index'))
+    return render_template('register.html')
+
+@app.cli.command('init-db')
+def init_db():
+    db.create_all()
+    print('Database initialized')
+
+if __name__ == '__main__':
+    app.run(debug=True)

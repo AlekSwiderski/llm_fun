@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+{% block content %}
+<h1>Edit Transaction</h1>
+<form method="post">
+    <label>Date:</label><br>
+    <input name="date" type="date" value="{{ transaction.date }}" required><br>
+    <label>Category:</label><br>
+    <input name="category" list="category-list" value="{{ transaction.category }}" required><br>
+    <datalist id="category-list">
+        {% for c in categories %}
+        <option value="{{ c.name }}"></option>
+        {% endfor %}
+    </datalist>
+    <label>Amount:</label><br>
+    <input name="amount" type="number" step="0.01" value="{{ transaction.amount }}" required><br>
+    <label>Description:</label><br>
+    <input name="description" value="{{ transaction.description }}"><br>
+    <button type="submit">Save</button>
+</form>
+{% endblock %}
