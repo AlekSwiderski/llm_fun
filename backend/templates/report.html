@@ -1,0 +1,13 @@
+{% extends 'base.html' %}
+{% block content %}
+<h1>Spending for {{ start.strftime('%B %Y') }}</h1>
+<table>
+    <tr><th>Category</th><th>Total</th></tr>
+    {% for category, total in totals %}
+    <tr>
+        <td>{{ category }}</td>
+        <td>{{ '{:.2f}'.format(total) }}</td>
+    </tr>
+    {% endfor %}
+</table>
+{% endblock %}

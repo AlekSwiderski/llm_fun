@@ -1,4 +1,5 @@
 from flask import Flask, render_template, redirect, url_for
+from datetime import date
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import (
     LoginManager,
@@ -59,6 +60,19 @@ def all_transactions():
         .all()
     )
     return render_template('all_transactions.html', transactions=transactions)
+
+
+@app.route('/report')
+@login_required
+def monthly_report():
+    start = date.today().replace(day=1)
+    totals = (
+        db.session.query(Transaction.category, db.func.sum(Transaction.amount))
+        .filter(Transaction.user_id == current_user.id, Transaction.date >= start)
+        .group_by(Transaction.category)
+        .all()
+    )
+    return render_template('report.html', totals=totals, start=start)
 
 
 @app.route('/add', methods=['GET', 'POST'])
