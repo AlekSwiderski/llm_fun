@@ -78,6 +78,33 @@ def add_transaction():
         return redirect(url_for('index'))
     return render_template('add_transaction.html')
 
+
+@app.route('/edit/<int:tx_id>', methods=['GET', 'POST'])
+@login_required
+def edit_transaction(tx_id):
+    from flask import request
+    t = Transaction.query.get_or_404(tx_id)
+    if t.user_id != current_user.id:
+        return redirect(url_for('index'))
+    if request.method == 'POST':
+        t.date = request.form['date']
+        t.category = request.form['category']
+        t.amount = request.form['amount']
+        t.description = request.form['description']
+        db.session.commit()
+        return redirect(url_for('index'))
+    return render_template('edit_transaction.html', transaction=t)
+
+
+@app.route('/delete/<int:tx_id>')
+@login_required
+def delete_transaction(tx_id):
+    t = Transaction.query.get_or_404(tx_id)
+    if t.user_id == current_user.id:
+        db.session.delete(t)
+        db.session.commit()
+    return redirect(url_for('index'))
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     from flask import request
