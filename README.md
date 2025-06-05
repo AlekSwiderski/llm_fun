@@ -1,0 +1,20 @@
+# Personal Finance Tracker
+
+A minimal web app to track income and expenses. Built with Flask.
+
+## Setup
+
+1. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+2. Initialize the database:
+   ```bash
+   flask --app backend.app init-db
+   ```
+3. Run the server:
+   ```bash
+   flask --app backend.app run
+   ```
+
+Open `http://127.0.0.1:5000` in your browser.
